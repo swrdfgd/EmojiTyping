@@ -1,0 +1,808 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Emoji Typing</title>
+  <style>
+    :root{
+      --bg:#0f0b10;
+      --panel:#1a1423;
+      --ink:#f4efe6;
+      --muted:#c8bda9;
+      --accent:#8b5e3c;
+      --accent-2:#c99b66;
+      --success:#3f7d44;
+      --danger:#b03a2e;
+      --glass: rgba(255,255,255,0.03);
+      --max-width:1100px;
+      --ui-font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      --display-font: "Merriweather", serif;
+    }
+
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family:var(--ui-font);
+      background: linear-gradient(180deg,#0b0910 0%, #15121a 100%);
+      color:var(--ink);
+      display:flex;
+      justify-content:center;
+      padding:20px;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+    }
+
+    .app {
+      width:100%;
+      max-width:var(--max-width);
+      border-radius:12px;
+      overflow:hidden;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.6);
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border:1px solid rgba(255,255,255,0.03);
+    }
+
+    header{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding:14px 18px;
+      gap:12px;
+      border-bottom:1px solid rgba(255,255,255,0.03);
+      background: linear-gradient(90deg, rgba(139,94,60,0.04), rgba(201,155,102,0.02));
+    }
+    .brand { display:flex; align-items:center; gap:12px; }
+    .logo {
+      width:44px; height:44px; border-radius:10px;
+      background: linear-gradient(180deg,var(--accent-2),var(--accent));
+      display:flex; align-items:center; justify-content:center; font-weight:800; color:white; font-family:var(--display-font);
+    }
+    .title { font-weight:700; letter-spacing:0.4px; }
+    .subtitle { font-size:12px; color:var(--muted); margin-top:2px; }
+
+    .hud { display:flex; gap:12px; align-items:center; }
+    .hud .box {
+      padding:8px 12px; border-radius:10px; background:var(--glass); font-weight:700; font-size:14px;
+    }
+    .controls { display:flex; gap:8px; align-items:center; }
+
+    .btn {
+      background:linear-gradient(180deg,var(--accent-2),var(--accent));
+      color: white; border: none; padding:8px 12px; border-radius:10px; cursor:pointer; font-weight:700;
+    }
+    .btn.ghost { background:transparent; border:1px solid rgba(255,255,255,0.04); color:var(--ink); padding:7px 10px; }
+
+    main.play {
+      display:flex; gap:16px; padding:18px; align-items:stretch;
+    }
+    .arena {
+      position:relative;
+      flex:1 1 70%;
+      height:66vh;
+      min-height:380px;
+      border-radius:10px;
+      overflow:hidden;
+      background:
+        radial-gradient(circle at 20% 10%, rgba(255,255,255,0.02), transparent 10%),
+        linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.005));
+      border:1px dashed rgba(255,255,255,0.02);
+      box-shadow: inset 0 6px 20px rgba(0,0,0,0.6);
+    }
+
+    aside.side { width:320px; max-width:35%; display:flex; flex-direction:column; gap:12px; }
+
+    .panel {
+      background: rgba(255,255,255,0.02);
+      border-radius:10px; padding:12px; border:1px solid rgba(255,255,255,0.02);
+    }
+
+    .target {
+      position:absolute; transform:translate(-50%,-50%); pointer-events:none; user-select:none;
+      transition: transform 120ms linear;
+      display:flex; flex-direction:column; align-items:center; gap:6px;
+      filter: drop-shadow(0 8px 12px rgba(0,0,0,0.6));
+      will-change: transform, left, top;
+    }
+    .target.locked { transform: translate(-50%,-50%) scale(1.06); filter: drop-shadow(0 16px 28px rgba(201,155,102,0.14)); z-index:2; }
+    .emoji { font-size:36px; width:60px; height:60px; display:flex; align-items:center; justify-content:center; border-radius:12px; background:rgba(255,255,255,0.02); transition: box-shadow 160ms, transform 160ms; }
+    .word { padding:6px 10px; border-radius:999px; background:rgba(255,255,255,0.02); font-weight:800; font-size:14px; display:flex; gap:6px; }
+    .word .done { color:var(--success); }
+    .word .remain { opacity:0.8; color:var(--muted); }
+
+    .target.locked .emoji { box-shadow: 0 8px 28px rgba(201,155,102,0.14); transform: translateY(-4px) rotate(-2deg); }
+    .target.ready .emoji { animation: pop 360ms ease; }
+    @keyframes pop { 0%{ transform: scale(1) } 50%{ transform: scale(1.16) } 100%{ transform: scale(1) } }
+
+    .overlay {
+      position:absolute; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none;
+    }
+    .help-card {
+      pointer-events:auto; background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border-radius:12px; padding:18px; width:360px; border:1px solid rgba(255,255,255,0.03);
+      box-shadow:0 10px 30px rgba(0,0,0,0.6);
+    }
+
+    .fade-out { animation: disappear 360ms ease forwards; }
+    @keyframes disappear {
+      to { transform: translate(-50%,-120%) scale(0.4) rotate(12deg); opacity:0; }
+    }
+    .nudge { animation: nudge 180ms ease; }
+    @keyframes nudge { 50%{ transform: translateX(-8px) } }
+
+    .particle {
+      position:absolute; width:8px; height:8px; border-radius:50%;
+      pointer-events:none; transform: translate(-50%,-50%);
+      opacity:0.95; will-change: transform, opacity;
+    }
+
+    @media (max-width:900px){
+      main.play { flex-direction:column; }
+      aside.side { width:100%; max-width:100%; }
+      .hud { flex-wrap:wrap; gap:8px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app" id="app">
+    <header>
+      <div class="brand">
+        <div class="logo">V</div>
+        <div>
+          <div class="title">Emoji Typing</div>
+          <div class="subtitle" id="subtitle">Ketik kata sebelum emoji kabur</div>
+        </div>
+      </div>
+
+      <div class="hud">
+       <div class="box"><span id="scoreLabel">Skor</span>: <span id="score">0</span></div>
+		<div class="box"><span id="livesLabel">Lives</span>: <span id="livesDisplay">❤️❤️❤️</span></div>
+        <div class="controls">
+          <div class="lang-toggle" aria-label="language" style="display:flex; gap:6px;">
+            <button id="btn-id" class="btn">ID</button>
+            <button id="btn-en" class="btn ghost">EN</button>
+          </div>
+          <button id="restartBtn" class="btn ghost">Restart</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="play">
+      <section class="arena" id="arena" tabindex="0" aria-label="Game arena">
+        <div class="overlay" id="overlayRoot">
+          <div class="help-card" id="helpCard">
+            <h3 id="helpTitle" style="margin:0 0 8px 0">Cara Bermain</h3>
+            <div id="helpText" style="color:var(--muted); font-size:14px; line-height:1.4">
+              <ol style="padding-left:18px; margin:6px 0 0 0;">
+                <li>Emoji terbang ke atas. Jika keluar layar — kamu kehilangan 1 ❤️.</li>
+                <li>Ketik huruf pertama untuk <strong>mengunci</strong> satu emoji dengan huruf awal sama. Jika lebih dari satu, dipilih acak.</li>
+                <li>Selesaikan mengetik kata. Setelah selesai, tekan <strong>Space</strong> untuk menghapus emoji dan mendapat skor.</li>
+              </ol>
+            </div>
+            <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:12px;">
+              <button id="startBtn" class="btn">Mulai</button>
+              <button id="closeHelp" class="btn ghost">Tutup</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <aside class="side">
+        <div class="panel">
+          <div style="font-weight:800; margin-bottom:6px" id="activeLabel">Target Sekarang</div>
+          <div id="activeWord" style="font-size:16px; color:var(--accent)">—</div>
+          <div style="font-size:13px; color:var(--muted); margin-top:8px">
+            <span id="lenLabel">Panjang kata:</span> <span id="activeLen">0</span>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div style="font-weight:800; margin-bottom:8px" id="tipsLabel">Tips</div>
+          <div style="color:var(--muted); font-size:13px" id="tipsText">
+            Jika salah ketik, emoji akan terdorong sedikit.
+          </div>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <script>
+    /* ===== Utilities ===== */
+    function rand(min, max) { return Math.random() * (max - min) + min; }
+    function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+    function uid() { return Math.random().toString(36).slice(2,9); }
+
+    /* ===== Data ===== */
+    var WORD_BANK = [
+	  // 😀 Wajah & Emosi
+	  { emoji: '😀', id: 'senyum', en: 'smile' },
+	  { emoji: '😂', id: 'tertawa', en: 'laugh' },
+	  { emoji: '😍', id: 'jatuh cinta', en: 'in love' },
+	  { emoji: '😎', id: 'keren', en: 'cool' },
+	  { emoji: '😢', id: 'sedih', en: 'sad' },
+	  { emoji: '😡', id: 'marah', en: 'angry' },
+	  { emoji: '😱', id: 'terkejut', en: 'shocked' },
+	  { emoji: '😴', id: 'mengantuk', en: 'sleepy' },
+
+	  // 🐶 Hewan
+	  { emoji: '🐶', id: 'anjing', en: 'dog' },
+	  { emoji: '🐱', id: 'kucing', en: 'cat' },
+	  { emoji: '🐭', id: 'tikus', en: 'mouse' },
+	  { emoji: '🐹', id: 'hamster', en: 'hamster' },
+	  { emoji: '🐰', id: 'kelinci', en: 'rabbit' },
+	  { emoji: '🦊', id: 'rubah', en: 'fox' },
+	  { emoji: '🐻', id: 'beruang', en: 'bear' },
+	  { emoji: '🐼', id: 'panda', en: 'panda' },
+	  { emoji: '🦁', id: 'singa', en: 'lion' },
+	  { emoji: '🐮', id: 'sapi', en: 'cow' },
+	  { emoji: '🐷', id: 'babi', en: 'pig' },
+	  { emoji: '🐵', id: 'monyet', en: 'monkey' },
+	  { emoji: '🐔', id: 'ayam', en: 'chicken' },
+	  { emoji: '🐧', id: 'pinguin', en: 'penguin' },
+	  { emoji: '🐦', id: 'burung', en: 'bird' },
+	  { emoji: '🐤', id: 'anak ayam', en: 'chick' },
+	  { emoji: '🐸', id: 'katak', en: 'frog' },
+	  { emoji: '🐢', id: 'kura-kura', en: 'turtle' },
+	  { emoji: '🐍', id: 'ular', en: 'snake' },
+	  { emoji: '🐳', id: 'paus', en: 'whale' },
+	  { emoji: '🐬', id: 'lumba-lumba', en: 'dolphin' },
+	  { emoji: '🦋', id: 'kupu-kupu', en: 'butterfly' },
+	  { emoji: '🐝', id: 'lebah', en: 'bee' },
+	  { emoji: '🐞', id: 'kumbang', en: 'ladybug' },
+	  { emoji: '🦖', id: 'dinosaurus', en: 'dinosaur' },
+
+	  // 🍎 Makanan & Minuman
+	  { emoji: '🍎', id: 'apel', en: 'apple' },
+	  { emoji: '🍌', id: 'pisang', en: 'banana' },
+	  { emoji: '🍇', id: 'anggur', en: 'grape' },
+	  { emoji: '🍉', id: 'semangka', en: 'watermelon' },
+	  { emoji: '🍍', id: 'nanas', en: 'pineapple' },
+	  { emoji: '🥭', id: 'mangga', en: 'mango' },
+	  { emoji: '🍓', id: 'stroberi', en: 'strawberry' },
+	  { emoji: '🍒', id: 'ceri', en: 'cherry' },
+	  { emoji: '🍑', id: 'persik', en: 'peach' },
+	  { emoji: '🥝', id: 'kiwi', en: 'kiwi' },
+	  { emoji: '🍅', id: 'tomat', en: 'tomato' },
+	  { emoji: '🥦', id: 'brokoli', en: 'broccoli' },
+	  { emoji: '🥕', id: 'wortel', en: 'carrot' },
+	  { emoji: '🌽', id: 'jagung', en: 'corn' },
+	  { emoji: '🍞', id: 'roti', en: 'bread' },
+	  { emoji: '🧀', id: 'keju', en: 'cheese' },
+	  { emoji: '🍕', id: 'pizza', en: 'pizza' },
+	  { emoji: '🍔', id: 'burger', en: 'burger' },
+	  { emoji: '🍟', id: 'kentang goreng', en: 'fries' },
+	  { emoji: '🌭', id: 'hotdog', en: 'hotdog' },
+	  { emoji: '🍗', id: 'ayam goreng', en: 'fried chicken' },
+	  { emoji: '🍣', id: 'sushi', en: 'sushi' },
+	  { emoji: '🍩', id: 'donat', en: 'donut' },
+	  { emoji: '🍪', id: 'kue kering', en: 'cookie' },
+	  { emoji: '🎂', id: 'kue ulang tahun', en: 'birthday cake' },
+	  { emoji: '🍫', id: 'cokelat', en: 'chocolate' },
+	  { emoji: '🍦', id: 'es krim', en: 'ice cream' },
+	  { emoji: '🍿', id: 'popcorn', en: 'popcorn' },
+	  { emoji: '☕', id: 'kopi', en: 'coffee' },
+	  { emoji: '🥤', id: 'minuman', en: 'drink' },
+
+	  // 🚗 Transportasi
+	  { emoji: '🚗', id: 'mobil', en: 'car' },
+	  { emoji: '🚕', id: 'taksi', en: 'taxi' },
+	  { emoji: '🚌', id: 'bus', en: 'bus' },
+	  { emoji: '🚎', id: 'trolleybus', en: 'trolleybus' },
+	  { emoji: '🏎️', id: 'mobil balap', en: 'racecar' },
+	  { emoji: '🚓', id: 'mobil polisi', en: 'police car' },
+	  { emoji: '🚑', id: 'ambulans', en: 'ambulance' },
+	  { emoji: '🚒', id: 'pemadam', en: 'firetruck' },
+	  { emoji: '🚲', id: 'sepeda', en: 'bicycle' },
+	  { emoji: '🏍️', id: 'motor', en: 'motorcycle' },
+	  { emoji: '🚂', id: 'kereta', en: 'train' },
+	  { emoji: '✈️', id: 'pesawat', en: 'airplane' },
+	  { emoji: '🚀', id: 'roket', en: 'rocket' },
+	  { emoji: '🚢', id: 'kapal', en: 'ship' },
+	  { emoji: '⛵', id: 'perahu', en: 'sailboat' },
+
+	  // 🌍 Alam & Cuaca
+	  { emoji: '☀️', id: 'matahari', en: 'sun' },
+	  { emoji: '🌙', id: 'bulan', en: 'moon' },
+	  { emoji: '⭐', id: 'bintang', en: 'star' },
+	  { emoji: '🌈', id: 'pelangi', en: 'rainbow' },
+	  { emoji: '☁️', id: 'awan', en: 'cloud' },
+	  { emoji: '⛈️', id: 'badai', en: 'storm' },
+	  { emoji: '❄️', id: 'salju', en: 'snow' },
+	  { emoji: '💧', id: 'tetes air', en: 'water drop' },
+	  { emoji: '🔥', id: 'api', en: 'fire' },
+	  { emoji: '🌊', id: 'ombak', en: 'wave' },
+	  { emoji: '🌍', id: 'bumi', en: 'earth' },
+	  { emoji: '🌋', id: 'gunung berapi', en: 'volcano' },
+	  { emoji: '🌳', id: 'pohon', en: 'tree' },
+	  { emoji: '🌸', id: 'bunga', en: 'flower' },
+	  { emoji: '🍂', id: 'daun gugur', en: 'fallen leaf' },
+	  { emoji: '🍁', id: 'daun maple', en: 'maple leaf' },
+
+	  // ⚽ Olahraga & Benda
+	  { emoji: '⚽', id: 'bola', en: 'ball' },
+	  { emoji: '🏀', id: 'basket', en: 'basketball' },
+	  { emoji: '🏈', id: 'rugby', en: 'rugby' },
+	  { emoji: '🎾', id: 'tenis', en: 'tennis' },
+	  { emoji: '🏐', id: 'voli', en: 'volleyball' },
+	  { emoji: '🎱', id: 'biliar', en: 'billiard' },
+	  { emoji: '🏓', id: 'pingpong', en: 'pingpong' },
+	  { emoji: '🎸', id: 'gitar', en: 'guitar' },
+	  { emoji: '🥁', id: 'drum', en: 'drum' },
+	  { emoji: '🎤', id: 'mikrofon', en: 'microphone' },
+	  { emoji: '🎧', id: 'headset', en: 'headphones' },
+	  { emoji: '📱', id: 'hp', en: 'phone' },
+	  { emoji: '💻', id: 'laptop', en: 'laptop' },
+	  { emoji: '⌚', id: 'jam tangan', en: 'watch' },
+	  { emoji: '📚', id: 'buku', en: 'book' },
+	  { emoji: '✏️', id: 'pensil', en: 'pencil' },
+	  { emoji: '✂️', id: 'gunting', en: 'scissors' },
+	  { emoji: '🔑', id: 'kunci', en: 'key' },
+	  { emoji: '💡', id: 'lampu', en: 'lamp' },
+	  { emoji: '🔔', id: 'bel', en: 'bell' },
+	  {	emoji: 'letter', id: 'single', en: 'letter'},
+	  {	emoji: 'letter', id: 'double', en: 'letter'},
+	  {	emoji: 'letter', id: 'rnd', en: 'letter'},
+    ];
+
+	var TEXTS = {
+	  id: {
+		instr: 'Ketik huruf pertama untuk mengunci. Selesaikan kata & tekan Spasi.',
+		restart: 'Mulai Ulang', start: 'Mulai', gameover: 'Permainan Selesai',
+		overlayIntro: 'Emoji akan terbang ke atas. Jika kabur, kamu kehilangan ❤️.',
+		activeLabel: 'Target Sekarang',
+		lenLabel: 'Panjang kata:',
+		tipsLabel: 'Tips',
+		tipsText: 'Jika salah ketik, emoji akan terdorong sedikit.',
+		scoreLabel: 'Skor',
+		livesLabel: 'Nyawa'
+	  },
+	  en: {
+		instr: 'Type first letter to lock. Finish word & press Space.',
+		restart: 'Restart', start: 'Start', gameover: 'Game Over',
+		overlayIntro: 'Emojis fly upward. If they escape, you lose ❤️.',
+		activeLabel: 'Current Target',
+		lenLabel: 'Word length:',
+		tipsLabel: 'Tips',
+		tipsText: 'If you mistype, the emoji will be nudged slightly.',
+		scoreLabel: 'Score',
+		livesLabel: 'Lives'
+	  }
+	};
+
+    /* ===== Audio synth (WebAudio) ===== */
+    var AudioSynth = (function(){
+      var ctx = null;
+      function ensure() {
+        if (!ctx) {
+          ctx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        return ctx;
+      }
+      function playWave(opts) {
+        var c = ensure();
+        var o = c.createOscillator();
+        var g = c.createGain();
+        if (opts.type) o.type = opts.type;
+        o.frequency.setValueAtTime(opts.freq || 440, c.currentTime);
+        g.gain.setValueAtTime(0, c.currentTime);
+
+        o.connect(g);
+        g.connect(c.destination);
+        var now = c.currentTime;
+        // envelope
+        var a = opts.amp || 0.12;
+        var attack = opts.attack || 0.005;
+        var decay = opts.decay || 0.12;
+        var sustain = opts.sustain || 0.001;
+        g.gain.linearRampToValueAtTime(a, now + attack);
+        g.gain.exponentialRampToValueAtTime(Math.max(sustain, 0.0001), now + attack + decay);
+
+        o.start(now);
+        var dur = opts.duration || 0.18;
+        g.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+        o.stop(now + dur + 0.02);
+      }
+      return {
+        spawn: function(){ playWave({type:'sine', freq:420, amp:0.06, attack:0.004, decay:0.12, duration:0.12}); },
+        correct: function(){ playWave({type:'triangle', freq:620, amp:0.12, attack:0.002, decay:0.18, duration:0.18}); },
+        wrong: function(){ playWave({type:'sawtooth', freq:180, amp:0.12, attack:0.001, decay:0.22, duration:0.22}); },
+        remove: function(){ playWave({type:'sine', freq:880, amp:0.14, attack:0.002, decay:0.18, duration:0.18}); },
+        gameover: function(){ playWave({type:'square', freq:120, amp:0.18, attack:0.01, decay:0.8, duration:0.8}); }
+      };
+    })();
+
+    /* ===== State & Refs ===== */
+    var lang = 'id';
+    var score = 0;
+    var lives = 3;
+    var running = false;
+    var targets = []; // array of objects {id, el, x, y, vx, vy, word, progress, removing}
+    var activeId = null;
+    var spawnInterval = null;
+    var rafId = null;
+
+    /* ===== Elements ===== */
+    var arena = document.getElementById('arena');
+    var scoreEl = document.getElementById('score');
+    var livesDisplay = document.getElementById('livesDisplay');
+    var btnId = document.getElementById('btn-id');
+    var btnEn = document.getElementById('btn-en');
+    var restartBtn = document.getElementById('restartBtn');
+    var startBtn = document.getElementById('startBtn');
+    var closeHelp = document.getElementById('closeHelp');
+    var overlayRoot = document.getElementById('overlayRoot');
+    var activeWordEl = document.getElementById('activeWord');
+    var activeLenEl = document.getElementById('activeLen');
+    var subtitle = document.getElementById('subtitle');
+    var helpTitle = document.getElementById('helpTitle');
+    var helpText = document.getElementById('helpText');
+
+    /* ===== Functions ===== */
+	function updateHUD() {
+	  scoreEl.textContent = String(score);
+	  var s = '';
+	  for (var i=0;i<3;i++){
+		if (i < lives) s += '❤️';
+		else s += '💔';
+	  }
+	  livesDisplay.textContent = s;
+	  updateActiveWord(); // highlight kata aktif
+	}
+
+	
+	function updateActiveWord() {
+	  if (activeId) {
+		var t = getTargetById(activeId);
+		if (t) {
+		  var done = '';
+		  var remain = '';
+
+		  // buat highlight progress + spasi kelihatan
+		  for (var i = 0; i < t.word.length; i++) {
+			var ch = t.word.charAt(i);
+			var displayChar = (ch === ' ') ? '␣' : ch; // tampilkan spasi sebagai ␣
+
+			if (i < t.progress) {
+			  done += '<span style="color:var(--success); font-weight:800;">' + displayChar + '</span>';
+			} else {
+			  remain += '<span style="color:var(--muted);">' + displayChar + '</span>';
+			}
+		  }
+
+		  activeWordEl.innerHTML = done + remain;
+		  activeLenEl.textContent = String(t.word.length);
+		} else {
+		  activeWordEl.textContent = '—';
+		  activeLenEl.textContent = '0';
+		}
+	  } else {
+		activeWordEl.textContent = '—';
+		activeLenEl.textContent = '0';
+	  }
+	}
+
+	
+
+    function setLang(to) {
+      lang = to;
+      if (lang === 'id') {
+        btnId.classList.remove('ghost'); btnEn.classList.add('ghost');
+        subtitle.textContent = 'Ketik kata sebelum emoji kabur';
+        helpTitle.textContent = 'Cara Bermain';
+        helpText.innerHTML = '<ol style="padding-left:18px; margin:6px 0 0 0;"><li>Emoji terbang ke atas. Jika keluar layar — kamu kehilangan 1 ❤️.</li><li>Ketik huruf pertama untuk <strong>mengunci</strong> satu emoji dengan huruf awal sama. Jika lebih dari satu, dipilih acak.</li><li>Selesaikan mengetik kata. Setelah selesai, tekan <strong>Space</strong> untuk menghapus emoji dan mendapat skor.</li></ol>';
+        document.getElementById('activeLabel').textContent = TEXTS.id.activeLabel;
+        document.getElementById('lenLabel').textContent = TEXTS.id.lenLabel;
+        document.getElementById('tipsLabel').textContent = TEXTS.id.tipsLabel;
+        document.getElementById('tipsText').textContent = TEXTS.id.tipsText;
+        startBtn.textContent = TEXTS.id.start;
+        restartBtn.textContent = TEXTS.id.restart;
+      } else {
+        btnEn.classList.remove('ghost'); btnId.classList.add('ghost');
+        subtitle.textContent = 'Type the word before the emoji escapes';
+        helpTitle.textContent = 'How to Play';
+        helpText.innerHTML = '<ol style="padding-left:18px; margin:6px 0 0 0;"><li>Emojis fly upward. If they exit, you lose 1 ❤️.</li><li>Type the first letter to <strong>lock</strong> one emoji whose word begins with that letter. If multiples match, one is chosen randomly.</li><li>Continue typing until the word is complete. After that, press <strong>Space</strong> to remove the emoji and score points.</li></ol>';
+        document.getElementById('activeLabel').textContent = TEXTS.en.activeLabel;
+        document.getElementById('lenLabel').textContent = TEXTS.en.lenLabel;
+        document.getElementById('tipsLabel').textContent = TEXTS.en.tipsLabel;
+        document.getElementById('tipsText').textContent = TEXTS.en.tipsText;
+        startBtn.textContent = TEXTS.en.start;
+        restartBtn.textContent = TEXTS.en.restart;
+      }
+	  document.getElementById('scoreLabel').textContent = TEXTS[lang].scoreLabel;
+	  document.getElementById('livesLabel').textContent = TEXTS[lang].livesLabel;
+      updateHUD();
+    }
+
+    function getTargetById(id) {
+      for (var i=0;i<targets.length;i++) if (targets[i].id === id) return targets[i];
+      return null;
+    }
+
+	letters = 'abcdefghijklmnopqrstuvwxyz';
+    function spawnOne() {
+      var rect = arena.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      var bank = pick(WORD_BANK);
+      var word = (lang === 'id') ? bank.id : bank.en;
+	  if (bank.emoji == 'letter'){word = pick(letters);
+		if (bank.id == 'double'){word += pick(letters)}
+		else if (bank.id == 'rnd'){
+			while (Math.random() < 0.5){
+				word += pick(letters);
+			}
+		}
+	  }	  
+      var id = uid();
+      var el = document.createElement('div');
+      el.className = 'target';
+      el.dataset.id = id;
+      el.dataset.word = word;
+      el.dataset.progress = '0';
+
+      var emojiDiv = document.createElement('div');
+      emojiDiv.className = 'emoji';
+      emojiDiv.textContent = bank.emoji;
+	  if (bank.emoji == 'letter'){emojiDiv.textContent = word;
+	  }
+
+      var wordDiv = document.createElement('div');
+      wordDiv.className = 'word';
+      var doneSpan = document.createElement('span');
+      doneSpan.className = 'done';
+      doneSpan.textContent = '';
+      var remainSpan = document.createElement('span');
+      remainSpan.className = 'remain';
+      remainSpan.textContent = word;
+
+      wordDiv.appendChild(doneSpan);
+      wordDiv.appendChild(remainSpan);
+      el.appendChild(emojiDiv);
+      el.appendChild(wordDiv);
+
+      // initial position (bottom area)
+      var x = Math.round(rand(60, Math.max(120, rect.width - 60)));
+      var y = rect.height + Math.round(rand(20, 120));
+      el.style.left = x + 'px';
+      el.style.top = y + 'px';
+      arena.appendChild(el);
+
+      var t = {
+        id: id,
+        el: el,
+        x: x,
+        y: y,
+        vx: rand(-30, 30),
+        vy: -rand(40, 90),
+        word: word,
+        progress: 0,
+        removing: false
+      };
+      targets.push(t);
+
+      // tiny spawn flair & sound
+      el.classList.add('spawned');
+      AudioSynth.spawn();
+    }
+
+    function refreshTargetText(t) {
+      if (!t || !t.el) return;
+      var done = t.el.querySelector('.done');
+      var remain = t.el.querySelector('.remain');
+      done.textContent = t.word.slice(0, t.progress);
+      remain.textContent = t.word.slice(t.progress);
+      if (t.progress >= t.word.length) {
+        t.el.classList.add('ready');
+      } else {
+        t.el.classList.remove('ready');
+      }
+    }
+
+    function removeTarget(tObj, scoreIt) {
+      if (!tObj || tObj.removing) return;
+      tObj.removing = true;
+      tObj.el.classList.add('fade-out');
+      // particle burst
+      burstParticles(tObj.x, tObj.y);
+      setTimeout(function(){
+        try { arena.removeChild(tObj.el); } catch(e){}
+        var idx = -1;
+        for (var i=0;i<targets.length;i++) if (targets[i].id === tObj.id) { idx = i; break; }
+        if (idx >= 0) targets.splice(idx, 1);
+      }, 380);
+      if (scoreIt) {
+        score += (tObj.word.length * 10);
+        AudioSynth.remove();
+      } else {
+        AudioSynth.wrong();
+      }
+      if (activeId === tObj.id) activeId = null;
+      updateHUD();
+    }
+
+    function burstParticles(x, y) {
+      for (var i=0;i<10;i++){
+        (function(){
+          var p = document.createElement('div');
+          p.className = 'particle';
+          p.style.left = x + 'px';
+          p.style.top = y + 'px';
+          var hue = 30 + Math.round(rand(0,40));
+          p.style.background = 'hsl(' + hue + ', 70%, 60%)';
+          arena.appendChild(p);
+          var dx = rand(-120,120);
+          var dy = rand(-160,-40);
+          var dur = rand(400,900);
+          p.animate([
+            { transform: 'translate(0px,0px)', opacity: 1 },
+            { transform: 'translate('+dx+'px,'+dy+'px) scale(0.4)', opacity: 0 }
+          ], { duration: dur, easing: 'cubic-bezier(.2,.9,.2,1)' });
+          setTimeout(function(){ try{ arena.removeChild(p); }catch(e){} }, dur + 40);
+        })();
+      }
+    }
+
+    function gameLoop(now) {
+      // move targets
+      var rect = arena.getBoundingClientRect();
+      for (var i = targets.length - 1; i >= 0; i--) {
+        var t = targets[i];
+        if (t.removing) continue;
+        t.x += t.vx * 0.016;
+        t.y += t.vy * 0.016;
+        // edge bounce
+        if (t.x < 30) { t.x = 30; t.vx = -t.vx * 0.85 + rand(-10,10); }
+        if (t.x > rect.width - 30) { t.x = rect.width - 30; t.vx = -t.vx * 0.85 + rand(-10,10); }
+        // escaped
+        if (t.y < -80) {
+          try { arena.removeChild(t.el); } catch(e){}
+          targets.splice(i,1);
+          if (activeId === t.id) activeId = null;
+          lives = Math.max(0, lives - 1);
+          updateHUD();
+          AudioSynth.wrong();
+          if (lives <= 0) { endGame(); return; }
+          continue;
+        }
+        // apply
+        t.el.style.left = Math.round(t.x) + 'px';
+        t.el.style.top = Math.round(t.y) + 'px';
+      }
+      rafId = requestAnimationFrame(gameLoop);
+    }
+
+    function startSpawning() {
+      if (spawnInterval) clearInterval(spawnInterval);
+      spawnInterval = setInterval(function(){
+        if (targets.length < 10) spawnOne();
+      }, 1100);
+    }
+
+    function stopSpawning() {
+      if (spawnInterval) { clearInterval(spawnInterval); spawnInterval = null; }
+    }
+
+    function startGame() {
+      // reset
+      score = 0; lives = 3; activeId = null;
+      // clear existing
+      for (var i=0;i<targets.length;i++){ try{ arena.removeChild(targets[i].el); }catch(e){} }
+      targets = [];
+      updateHUD();
+      overlayRoot.style.display = 'none';
+      running = true;
+      // start loop + spawn
+      if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+      rafId = requestAnimationFrame(gameLoop);
+      startSpawning();
+    }
+
+    function endGame() {
+      running = false;
+      stopSpawning();
+      if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+      // show overlay with score
+      var overlayCard = document.getElementById('helpCard');
+      var title = document.getElementById('helpTitle');
+      var text = document.getElementById('helpText');
+      title.textContent = (lang === 'id') ? TEXTS.id.gameover : TEXTS.en.gameover;
+      text.innerHTML = (lang === 'id') ? ('Skor kamu: ' + String(score)) : ('Your score: ' + String(score));
+      overlayRoot.style.display = 'flex';
+      AudioSynth.gameover();
+    }
+
+    /* ===== Key handling (Escape removed) ===== */
+	function onKeyDown(e) {
+	  if (!running) return;
+	  var k = e.key;
+
+	  if (activeId) {
+		var target = getTargetById(activeId);
+		if (!target) { activeId = null; return; }
+
+		var expected = target.word.charAt(target.progress).toLowerCase();
+
+		// --- jika yang diharapkan adalah spasi ---
+		if (expected === ' ' && k === ' ') {
+		  target.progress += 1;
+		  refreshTargetText(target);
+		  AudioSynth.correct();
+		  updateHUD();
+		  e.preventDefault();
+		  return;
+		}
+
+		// --- kalau sudah selesai dan tekan space -> hapus emoji ---
+		if (k === ' ' && target.progress >= target.word.length) {
+		  removeTarget(target, true);
+		  AudioSynth.correct();
+		  e.preventDefault();
+		  return;
+		}
+	  }
+
+	  if (k.length === 1) {
+		var ch = k.toLowerCase();
+		if (!activeId) {
+		  var candidates = [];
+		  for (var i=0;i<targets.length;i++){
+			var tt = targets[i];
+			if (!tt.removing && tt.progress === 0 && tt.word.charAt(0).toLowerCase() === ch) candidates.push(tt);
+		  }
+		  if (candidates.length) {
+			var chosen = pick(candidates);
+			activeId = chosen.id;
+			chosen.el.classList.add('locked');
+			AudioSynth.spawn();
+		  }
+		}
+		if (activeId) {
+		  var target = getTargetById(activeId);
+		  if (!target) { activeId = null; return; }
+		  var expected = target.word.charAt(target.progress).toLowerCase();
+		  if (expected === ch) {
+			target.progress += 1;
+			refreshTargetText(target);
+			AudioSynth.correct();
+		  } else {
+			target.vx += rand(-60,60);
+			target.el.classList.add('nudge');
+			window.setTimeout(function(){ if (target && target.el) { target.el.classList.remove('nudge'); } }, 180);
+			AudioSynth.wrong();
+		  }
+		  updateHUD();
+		}
+	  }
+	}
+
+
+    /* ===== Events & init ===== */
+    document.addEventListener('keydown', onKeyDown);
+
+    btnId.addEventListener('click', function(){ setLang('id'); });
+    btnEn.addEventListener('click', function(){ setLang('en'); });
+    restartBtn.addEventListener('click', function(){ startGame(); });
+    startBtn.addEventListener('click', function(){ startGame(); });
+    closeHelp.addEventListener('click', function(){ overlayRoot.style.display = 'none'; startGame(); });
+    arena.addEventListener('click', function(){ arena.focus(); });
+
+    // initial setup
+    setLang('id');
+    updateHUD();
+    // overlay visible at start
+    overlayRoot.style.display = 'flex';
+
+    // Pre-warm audio context on first user gesture for mobile autoplay policies
+    function ensureAudioOnGesture() {
+      try {
+        var ctx = (window.AudioContext || window.webkitAudioContext) && new (window.AudioContext || window.webkitAudioContext)();
+        if (ctx && ctx.state === 'suspended') {
+          ctx.resume && ctx.resume();
+        }
+      } catch(e){}
+      document.removeEventListener('click', ensureAudioOnGesture);
+    }
+    document.addEventListener('click', ensureAudioOnGesture);
+  </script>
+</body>
+</html>
